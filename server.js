@@ -16,6 +16,10 @@ const gameRoutes = require('./routes/game');
 const GameEngine = require('./services/gameEngine');
 
 const app = express();
+
+// ✅ Fix: trust proxy so express-rate-limit works on Render
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -49,8 +53,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000, // 1 minute
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
@@ -79,7 +83,6 @@ app.get('/health', (req, res) => {
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
-  // Handle authentication
   socket.on('authenticate', (token) => {
     try {
       const jwt = require('jsonwebtoken');
@@ -93,34 +96,28 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle bet placement
   socket.on('placeBet', async (betData) => {
     if (!socket.userId) {
       socket.emit('betResult', { success: false, message: 'Not authenticated' });
       return;
     }
-
     const result = await global.gameEngine.handleBet(socket.userId, betData);
     socket.emit('betResult', result);
   });
 
-  // Handle cashout
   socket.on('cashout', async () => {
     if (!socket.userId) {
       socket.emit('cashoutResult', { success: false, message: 'Not authenticated' });
       return;
     }
-
     const result = await global.gameEngine.handleCashout(socket.userId);
     socket.emit('cashoutResult', result);
   });
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
 
-  // Test event handler
   socket.on('test', (data) => {
     console.log('Test event received:', data);
     socket.emit('testResponse', { message: 'Server received your test!' });
@@ -131,11 +128,8 @@ io.on('connection', (socket) => {
 mongoose.connect(process.env.MONGODB_URI)
 .then(() => {
   console.log('Connected to MongoDB');
-  
-  // Initialize game engine after database connection
   global.gameEngine = new GameEngine(io);
   global.gameEngine.init();
-  
   console.log('Game engine initialized');
 })
 .catch((error) => {
@@ -180,9 +174,10 @@ process.on('SIGINT', () => {
 
 // Start server
 const PORT = process.env.PORT || 1254;
+const ENV = process.env.NODE_ENV || 'production';
 server.listen(PORT, () => {
   console.log(`🚀 Crypto Crash Game Backend running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Environment: ${ENV}`);
   console.log(`🎮 Game rounds: ${process.env.GAME_ROUND_DURATION || 10000}ms`);
   console.log(`⚡ Multiplier updates: ${process.env.MULTIPLIER_UPDATE_INTERVAL || 100}ms`);
 });
