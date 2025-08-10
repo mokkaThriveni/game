@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Crash Game - Fixed Version</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        .connected {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .disconnected {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        .connecting {
+            background: rgba(255, 193, 7, 0.8);
+        }
+
+        .debug-panel {
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .auth-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .auth-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            min-width: 150px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .user-info {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .game-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .multiplier-display {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .game-status {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .betting-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .form-row input,
+        .form-row select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Crypto Crash Game</h1>
+            <p>Watch the multiplier grow and cash out before it crashes!</p>
+        </div>
+
+        <div class="connection-status" id="connectionStatus">
+            Connecting...
+        </div>
+
+        <!-- Debug Panel -->
+        <div class="debug-panel" id="debugPanel">
+            <strong>Debug Log:</strong><br>
+            <div id="debugLog">Initializing...</div>
+        </div>
+
+        <!-- Authentication Section -->
+        <div class="auth-section" id="authSection">
+            <h2>🔐 User Authentication</h2>
+            <div class="auth-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="Enter email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password">
+                </div>
+                <button class="btn btn-primary" id="registerBtn">Register</button>
+                <button class="btn btn-secondary" id="loginBtn">Login</button>
+            </div>
+        </div>
+
+        <!-- User Info Section -->
+        <div class="user-info hidden" id="userInfo">
+            <h3>Welcome, <span id="userDisplayName">User</span>!</h3>
+            <p>Balance: $<span id="userBalance">0</span></p>
+            <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="activePlayers">0</div>
+                <div class="stat-label">Active Players</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalBets">0</div>
+                <div class="stat-label">Total Bets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalAmount">$0</div>
+                <div class="stat-label">Total Amount</div>
+            </div>
+        </div>
+
+        <div class="game-area">
+            <div class="game-panel">
+                <h2>🎯 Current Game</h2>
+                <div class="game-status" id="gameStatus">Waiting for game to start...</div>
+                <div class="multiplier-display" id="multiplier">1.00x</div>
+                <div class="betting-form">
+                    <div class="form-row">
+                        <label for="betAmount">Bet Amount (USD):</label>
+                        <input type="number" id="betAmount" value="10" min="1" step="1">
+                    </div>
+                    <div class="form-row">
+                        <label for="cryptoType">Crypto Type:</label>
+                        <select id="cryptoType">
+                            <option value="BTC">Bitcoin (BTC)</option>
+                            <option value="ETH">Ethereum (ETH)</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <button class="btn btn-primary" id="placeBetBtn" disabled>Place Bet</button>
+                        <button class="btn btn-danger" id="cashoutBtn" disabled>Cash Out</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="game-panel">
+                <h2>👥 Active Players</h2>
+                <div class="players-list" id="playersList">
+                    <p>No active players</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-panel">
+            <h2>📊 Recent Games</h2>
+            <div class="game-history" id="gameHistory">
+                <p>No recent games</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentGame = null;
+        let isAuthenticated = false;
+        let hasPlacedBet = false;
+        let currentUser = null;
+
+        // DOM elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const debugPanel = document.getElementById('debugPanel');
+        const debugLog = document.getElementById('debugLog');
+        const authSection = document.getElementById('authSection');
+        const userInfo = document.getElementById('userInfo');
+        const userDisplayName = document.getElementById('userDisplayName');
+        const userBalance = document.getElementById('userBalance');
+        const username = document.getElementById('username');
+        const email = document.getElementById('email');
+        const password = document.getElementById('password');
+        const registerBtn = document.getElementById('registerBtn');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const gameStatus = document.getElementById('gameStatus');
+        const multiplier = document.getElementById('multiplier');
+        const activePlayers = document.getElementById('activePlayers');
+        const totalBets = document.getElementById('totalBets');
+        const totalAmount = document.getElementById('totalAmount');
+        const playersList = document.getElementById('playersList');
+        const gameHistory = document.getElementById('gameHistory');
+        const betAmount = document.getElementById('betAmount');
+        const cryptoType = document.getElementById('cryptoType');
+        const placeBetBtn = document.getElementById('placeBetBtn');
+        const cashoutBtn = document.getElementById('cashoutBtn');
+
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            debugLog.innerHTML += `[${time}] ${message}<br>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(`[${time}] ${message}`);
+        }
+
+        function updateConnectionStatus(text, className) {
+            connectionStatus.textContent = text;
+            connectionStatus.className = `connection-status ${className}`;
+        }
+
+        // Initialize Socket.IO connection
+        function initializeSocket() {
+            log('Initializing Socket.IO connection...');
+            updateConnectionStatus('Connecting...', 'connecting');
+
+            try {
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+
+                socket.on('connect', () => {
+                    log('✅ Socket.IO connected successfully!');
+                    updateConnectionStatus('Connected', 'connected');
+                    gameStatus.textContent = 'Connected! Waiting for game...';
+                });
+
+                socket.on('disconnect', () => {
+                    log('❌ Socket.IO disconnected');
+                    updateConnectionStatus('Disconnected', 'disconnected');
+                    gameStatus.textContent = 'Disconnected from server';
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`);
+                    updateConnectionStatus('Connection Failed', 'disconnected');
+                    gameStatus.textContent = 'Connection failed: ' + error.message;
+                });
+
+                socket.on('error', (error) => {
+                    log(`❌ Socket error: ${error}`);
+                });
+
+                // Game events
+                socket.on('newGame', (data) => {
+                    log(`🎮 New game starting: ${JSON.stringify(data)}`);
+                    currentGame = data;
+                    gameStatus.textContent = 'New game starting in 5 seconds...';
+                    multiplier.textContent = '1.00x';
+                    if (isAuthenticated) {
+                        placeBetBtn.disabled = false;
+                    }
+                });
+
+                socket.on('gameStarted', (data) => {
+                    log(`🚀 Game started: ${JSON.stringify(data)}`);
+                    gameStatus.textContent = 'Game is running!';
+                });
+
+                socket.on('multiplierUpdate', (data) => {
+                    multiplier.textContent = data.multiplier.toFixed(2) + 'x';
+                    activePlayers.textContent = data.activePlayers;
+                });
+
+                socket.on('gameCrashed', (data) => {
+                    log(`💥 Game crashed at: ${data.crashPoint}x`);
+                    gameStatus.textContent = `Game crashed at ${data.crashPoint.toFixed(2)}x!`;
+                    multiplier.textContent = data.crashPoint.toFixed(2) + 'x';
+                    multiplier.style.color = '#f44336';
+                    
+                    setTimeout(() => {
+                        multiplier.style.color = 'white';
+                    }, 3000);
+                    
+                    addToHistory(data.crashPoint, false);
+                    hasPlacedBet = false;
+                    placeBetBtn.disabled = false;
+                    cashoutBtn.disabled = true;
+                });
+
+                socket.on('playerBet', (data) => {
+                    log(`💰 Player bet: ${JSON.stringify(data)}`);
+                    updatePlayersList();
+                    updateStats();
+                });
+
+                socket.on('playerCashout', (data) => {
+                    log(`💸 Player cashout: ${JSON.stringify(data)}`);
+                    updatePlayersList();
+                    updateStats();
+                });
+
+                // Authentication events
+                socket.on('authenticated', (result) => {
+                    if (result.success) {
+                        log('✅ Authentication successful');
+                        isAuthenticated = true;
+                        if (currentGame) {
+                            placeBetBtn.disabled = false;
+                        }
+                    } else {
+                        log(`❌ Authentication failed: ${result.message}`);
+                        isAuthenticated = false;
+                    }
+                });
+
+                // Bet result
+                socket.on('betResult', (result) => {
+                    if (result.success) {
+                        log('✅ Bet placed successfully');
+                        hasPlacedBet = true;
+                        placeBetBtn.disabled = true;
+                        cashoutBtn.disabled = false;
+                        alert('Bet placed successfully!');
+                    } else {
+                        log(`❌ Bet failed: ${result.message}`);
+                        alert('Bet failed: ' + result.message);
+                    }
+                });
+
+                // Cashout result
+                socket.on('cashoutResult', (result) => {
+                    if (result.success) {
+                        log(`✅ Cashout successful: $${result.winAmount}`);
+                        hasPlacedBet = false;
+                        placeBetBtn.disabled = false;
+                        cashoutBtn.disabled = true;
+                        alert(`Cashout successful! You won $${result.winAmount.toFixed(2)}`);
+                    } else {
+                        log(`❌ Cashout failed: ${result.message}`);
+                        alert('Cashout failed: ' + result.message);
+                    }
+                });
+
+            } catch (error) {
+                log(`❌ Error creating socket: ${error.message}`);
+                updateConnectionStatus('Connection Failed', 'disconnected');
+            }
+        }
+
+        // Authentication functions
+        async function register() {
+            const userData = {
+                username: username.value,
+                email: email.value,
+                password: password.value
+            };
+
+            try {
+                log('📝 Attempting to register...');
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    log('✅ Registration successful');
+                    localStorage.setItem('token', result.token);
+                    currentUser = result.user;
+                    authenticateUser();
+                } else {
+                    log(`❌ Registration failed: ${result.message}`);
+                    alert('Registration failed: ' + result.message);
+                }
+            } catch (error) {
+                log(`❌ Registration error: ${error.message}`);
+                alert('Registration error: ' + error.message);
+            }
+        }
+
+        async function login() {
+            const userData = {
+                email: email.value,
+                password: password.value
+            };
+
+            try {
+                log('🔑 Attempting to login...');
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    log('✅ Login successful');
+                    localStorage.setItem('token', result.token);
+                    currentUser = result.user;
+                    authenticateUser();
+                } else {
+                    log(`❌ Login failed: ${result.message}`);
+                    alert('Login failed: ' + result.message);
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`);
+                alert('Login error: ' + error.message);
+            }
+        }
+
+        function logout() {
+            log('🚪 Logging out...');
+            localStorage.removeItem('token');
+            currentUser = null;
+            isAuthenticated = false;
+            authSection.classList.remove('hidden');
+            userInfo.classList.add('hidden');
+            placeBetBtn.disabled = true;
+            cashoutBtn.disabled = true;
+        }
+
+        function authenticateUser() {
+            const token = localStorage.getItem('token');
+            if (token && socket) {
+                log('🔐 Authenticating with token...');
+                socket.emit('authenticate', token);
+                authSection.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                userDisplayName.textContent = currentUser.username;
+                userBalance.textContent = currentUser.balance || '1000';
+            }
+        }
+
+        // Event listeners
+        registerBtn.addEventListener('click', register);
+        loginBtn.addEventListener('click', login);
+        logoutBtn.addEventListener('click', logout);
+
+        placeBetBtn.addEventListener('click', () => {
+            if (!isAuthenticated) {
+                alert('Please login first');
+                return;
+            }
+
+            const amount = parseFloat(betAmount.value);
+            const crypto = cryptoType.value;
+            
+            if (amount <= 0) {
+                alert('Please enter a valid bet amount');
+                return;
+            }
+            
+            log(`💰 Placing bet: $${amount} in ${crypto}`);
+            socket.emit('placeBet', {
+                amount: amount,
+                currency: 'USD',
+                cryptoType: crypto
+            });
+        });
+
+        cashoutBtn.addEventListener('click', () => {
+            log('💸 Attempting cashout...');
+            socket.emit('cashout');
+        });
+
+        // Helper functions
+        function updateStats() {
+            totalBets.textContent = '0';
+            totalAmount.textContent = '$0';
+        }
+
+        function updatePlayersList() {
+            playersList.innerHTML = '<p>No active players</p>';
+        }
+
+        function addToHistory(crashPoint, isWin) {
+            const historyItem = document.createElement('div');
+            historyItem.className = `history-item ${isWin ? 'history-win' : 'history-crash'}`;
+            historyItem.textContent = crashPoint.toFixed(2) + 'x';
+            
+            gameHistory.insertBefore(historyItem, gameHistory.firstChild);
+            
+            while (gameHistory.children.length > 10) {
+                gameHistory.removeChild(gameHistory.lastChild);
+            }
+        }
+
+        // Initialize
+        log('🚀 Page loaded, initializing...');
+        initializeSocket();
+        
+        // Authenticate if token exists
+        setTimeout(() => {
+            authenticateUser();
+        }, 2000);
+        
+        updateStats();
+        updatePlayersList();
+    </script>
+</body>
+</html>

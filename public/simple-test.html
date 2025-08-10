@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .connecting { background: #fff3cd; color: #856404; }
+        button {
+            padding: 12px 24px;
+            margin: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Simple Socket.IO Connection Test</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <div class="test-section">
+        <h3>Connection Tests:</h3>
+        <button onclick="testBasicConnection()">Test Basic Connection</button>
+        <button onclick="testWithOptions()">Test With Options</button>
+        <button onclick="testServerHealth()">Test Server Health</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div class="log" id="log"></div>
+
+    <script>
+        let socket = null;
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+
+        function logMessage(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `[${time}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${time}] ${message}`);
+        }
+
+        function updateStatus(text, className) {
+            status.textContent = text;
+            status.className = `status ${className}`;
+        }
+
+        function testBasicConnection() {
+            logMessage('=== Testing Basic Connection ===');
+            updateStatus('Connecting...', 'connecting');
+            
+            try {
+                // Disconnect existing socket
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                }
+
+                logMessage('Creating basic Socket.IO connection...');
+                socket = io();
+
+                socket.on('connect', () => {
+                    logMessage('✅ Basic connection successful!');
+                    updateStatus('Connected (Basic)', 'connected');
+                });
+
+                socket.on('disconnect', () => {
+                    logMessage('❌ Basic connection disconnected');
+                    updateStatus('Disconnected', 'disconnected');
+                });
+
+                socket.on('connect_error', (error) => {
+                    logMessage(`❌ Basic connection error: ${error.message}`);
+                    updateStatus('Connection Failed', 'disconnected');
+                });
+
+            } catch (error) {
+                logMessage(`❌ Error creating basic socket: ${error.message}`);
+                updateStatus('Connection Failed', 'disconnected');
+            }
+        }
+
+        function testWithOptions() {
+            logMessage('=== Testing Connection With Options ===');
+            updateStatus('Connecting...', 'connecting');
+            
+            try {
+                // Disconnect existing socket
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                }
+
+                logMessage('Creating Socket.IO connection with options...');
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+
+                socket.on('connect', () => {
+                    logMessage('✅ Connection with options successful!');
+                    updateStatus('Connected (With Options)', 'connected');
+                });
+
+                socket.on('disconnect', () => {
+                    logMessage('❌ Connection with options disconnected');
+                    updateStatus('Disconnected', 'disconnected');
+                });
+
+                socket.on('connect_error', (error) => {
+                    logMessage(`❌ Connection with options error: ${error.message}`);
+                    updateStatus('Connection Failed', 'disconnected');
+                });
+
+            } catch (error) {
+                logMessage(`❌ Error creating socket with options: ${error.message}`);
+                updateStatus('Connection Failed', 'disconnected');
+            }
+        }
+
+        async function testServerHealth() {
+            logMessage('=== Testing Server Health ===');
+            
+            try {
+                logMessage('Testing /health endpoint...');
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    logMessage(`✅ Server health check passed: ${data.message}`);
+                    logMessage(`   Uptime: ${data.uptime}s`);
+                    logMessage(`   Timestamp: ${data.timestamp}`);
+                } else {
+                    logMessage(`❌ Server health check failed: ${response.status}`);
+                }
+            } catch (error) {
+                logMessage(`❌ Server health check error: ${error.message}`);
+            }
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+        }
+
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            logMessage('🚀 Page loaded, starting tests...');
+            setTimeout(() => {
+                testServerHealth();
+                setTimeout(() => {
+                    testBasicConnection();
+                }, 1000);
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .connecting { background: #fff3cd; color: #856404; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+        button:hover { background: #0056b3; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 WebSocket Connection Test</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="testEmit()">Test Emit</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div class="log" id="log"></div>
+
+    <script>
+        let socket = null;
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+
+        function logMessage(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `[${time}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStatus(text, className) {
+            status.textContent = text;
+            status.className = `status ${className}`;
+        }
+
+        function connect() {
+            logMessage('Attempting to connect...');
+            updateStatus('Connecting...', 'connecting');
+            
+            try {
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+
+                socket.on('connect', () => {
+                    logMessage('✅ Connected successfully!');
+                    updateStatus('Connected', 'connected');
+                });
+
+                socket.on('disconnect', () => {
+                    logMessage('❌ Disconnected');
+                    updateStatus('Disconnected', 'disconnected');
+                });
+
+                socket.on('connect_error', (error) => {
+                    logMessage(`❌ Connection error: ${error.message}`);
+                    updateStatus('Connection Failed', 'disconnected');
+                });
+
+                socket.on('error', (error) => {
+                    logMessage(`❌ Socket error: ${error}`);
+                });
+
+                // Test game events
+                socket.on('newGame', (data) => {
+                    logMessage(`🎮 New game: ${JSON.stringify(data)}`);
+                });
+
+                socket.on('gameStarted', (data) => {
+                    logMessage(`🚀 Game started: ${JSON.stringify(data)}`);
+                });
+
+                socket.on('multiplierUpdate', (data) => {
+                    logMessage(`📈 Multiplier: ${data.multiplier}x`);
+                });
+
+                socket.on('gameCrashed', (data) => {
+                    logMessage(`💥 Game crashed at: ${data.crashPoint}x`);
+                });
+
+            } catch (error) {
+                logMessage(`❌ Error creating socket: ${error.message}`);
+                updateStatus('Connection Failed', 'disconnected');
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                logMessage('🔌 Manually disconnected');
+            }
+        }
+
+        function testEmit() {
+            if (socket && socket.connected) {
+                logMessage('📤 Emitting test event...');
+                socket.emit('test', { message: 'Hello server!' });
+            } else {
+                logMessage('❌ Not connected - cannot emit');
+            }
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            logMessage('🔄 Page loaded, auto-connecting...');
+            setTimeout(connect, 1000);
+        });
+    </script>
+</body>
+</html>
